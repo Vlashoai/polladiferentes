@@ -8,7 +8,7 @@ Andru, Alonso, Rudy, Wipipi, Vlasho, Chocho, Caleño, Hugo, Veron, Cesar, Tigrez
 
 Los primeros **20 partidos** ya tienen resultado oficial cargado, igual que en el Excel original.
 
-## Instrucciones de despliegue
+## Instrucciones de despliegue 
 
 ### 1. Crear un proyecto Firebase NUEVO (distinto al de Brothers)
 
