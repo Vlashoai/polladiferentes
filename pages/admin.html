@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin – Polla del Mundial 2026</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+<div id="pinGate" class="pin-gate">
+  <div class="pin-card">
+    <h2 class="pin-title">🔧 Panel Admin</h2>
+    <p class="pin-sub">Ingresa el PIN de administrador</p>
+    <input type="password" id="pinInput" class="pin-input" placeholder="PIN" maxlength="10" />
+    <button class="btn-primary" id="pinBtn">Entrar</button>
+    <p class="pin-error" id="pinError"></p>
+  </div>
+</div>
+
+<main class="page-content" id="adminContent" style="display:none">
+  <div class="page-header">
+    <h2 class="page-title">🔧 Panel de Administración</h2>
+    <p class="page-sub">Ingresa los resultados oficiales. El ranking se actualiza automáticamente.</p>
+  </div>
+
+  <div class="admin-tabs">
+    <button class="tab-btn active" data-tab="grupos">⚽ Fase de Grupos</button>
+    <button class="tab-btn" data-tab="elim">🏅 Eliminatorias</button>
+    <button class="tab-btn" data-tab="seed">🌱 Datos Iniciales</button>
+  </div>
+
+  <div id="tab-grupos" class="tab-content active">
+    <p class="admin-hint">Ingresa el marcador de cada partido.</p>
+    <div id="adminGrupos"></div>
+  </div>
+
+  <div id="tab-elim" class="tab-content">
+    <p class="admin-hint">Escribe el nombre exacto del equipo ganador.</p>
+    <div id="adminElim"></div>
+  </div>
+
+  <div id="tab-seed" class="tab-content">
+    <div class="seed-section">
+      <h3>Cargar datos del Excel original</h3>
+      <p>Usa este botón <strong>solo una vez</strong> para cargar los resultados de los primeros 20 partidos y los pronósticos ya ingresados de los participantes.</p>
+      <button class="btn-secondary" id="seedBtn">🔄 Cargar datos del Excel</button>
+      <p id="seedStatus" class="seed-status"></p>
+    </div>
+  </div>
+</main>
+
+<script src="../app.js"></script>
+<script>
+  const pinBtn = document.getElementById('pinBtn');
+  const pinInput = document.getElementById('pinInput');
+  const pinError = document.getElementById('pinError');
+
+  function unlock() {
+    if (pinInput.value === ADMIN_PIN) {
+      document.getElementById('pinGate').style.display = 'none';
+      document.getElementById('adminContent').style.display = 'block';
+      const user = buildNav('admin');
+      if (!user) return;
+      init();
+    } else {
+      pinError.textContent = 'PIN incorrecto';
+      pinInput.value = '';
+      pinInput.focus();
+    }
+  }
+  pinBtn.addEventListener('click', unlock);
+  pinInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  let currentResults = {}, currentResultsElim = {};
+
+  async function init() {
+    currentResults = await getAllResults();
+    currentResultsElim = await getAllResultsElim();
+    renderGrupos();
+    renderElim();
+
+    document.getElementById('seedBtn').addEventListener('click', async () => {
+      document.getElementById('seedStatus').textContent = 'Cargando...';
+      await seedInitialData();
+      document.getElementById('seedStatus').textContent = '✅ Datos cargados correctamente';
+      currentResults = await getAllResults();
+      renderGrupos();
+    });
+  }
+
+  function renderGrupos() {
+    const container = document.getElementById('adminGrupos');
+    container.innerHTML = '';
+    let lastGroup = '';
+    GROUP_MATCHES.forEach(m => {
+      if (m.grupo !== lastGroup) {
+        lastGroup = m.grupo;
+        const div = document.createElement('div');
+        div.className = 'admin-group-header';
+        div.textContent = m.grupo;
+        container.appendChild(div);
+      }
+      const key = 'p' + m.id;
+      const r = currentResults[key] || {};
+      const realResult = r.g1 !== undefined ? resultFromGoals(r.g1, r.g2) : null;
+
+      const row = document.createElement('div');
+      row.className = 'admin-match-row';
+      row.innerHTML = `
+        <span class="admin-match-label">${m.id}. ${m.eq1} vs ${m.eq2}</span>
+        <div class="admin-score-inputs">
+          <input type="number" min="0" max="30" class="score-input" id="g1-${m.id}" value="${r.g1 !== undefined ? r.g1 : ''}" placeholder="—" />
+          <span class="score-sep">–</span>
+          <input type="number" min="0" max="30" class="score-input" id="g2-${m.id}" value="${r.g2 !== undefined ? r.g2 : ''}" placeholder="—" />
+          <button class="btn-save-score" data-id="${m.id}">Guardar</button>
+          <span class="admin-result-badge ${realResult ? 'has-result' : ''}">${realResult || '?'}</span>
+        </div>
+      `;
+      container.appendChild(row);
+
+      row.querySelector('.btn-save-score').addEventListener('click', async () => {
+        const g1v = document.getElementById(`g1-${m.id}`).value;
+        const g2v = document.getElementById(`g2-${m.id}`).value;
+        if (g1v === '' || g2v === '') { showToast('Ingresa ambos marcadores', 'err'); return; }
+        await saveResult(m.id, g1v, g2v);
+        currentResults[key] = { g1: Number(g1v), g2: Number(g2v) };
+        showToast(`✅ Partido ${m.id} guardado`);
+        renderGrupos();
+      });
+    });
+  }
+
+  function renderElim() {
+    const container = document.getElementById('adminElim');
+    container.innerHTML = '';
+    const PHASES = ['Ronda de 32', 'Ronda de 16', 'Cuartos de Final', 'Semifinal', 'Tercer Lugar', 'Final'];
+    const phaseMap = {};
+    KNOCKOUT_MATCHES.forEach(m => { (phaseMap[m.fase] = phaseMap[m.fase] || []).push(m); });
+
+    PHASES.forEach(fase => {
+      if (!phaseMap[fase]) return;
+      const header = document.createElement('div');
+      header.className = 'admin-group-header';
+      header.textContent = fase;
+      container.appendChild(header);
+
+      phaseMap[fase].forEach(m => {
+        const key = 'p' + m.id;
+        const winner = currentResultsElim[key] || '';
+        const row = document.createElement('div');
+        row.className = 'admin-match-row';
+        row.innerHTML = `
+          <span class="admin-match-label">${m.label}</span>
+          <div class="admin-score-inputs">
+            <input type="text" class="elim-winner-input" id="elim-${m.id}" value="${winner}" placeholder="Ganador..." />
+            <button class="btn-save-score" data-id="${m.id}">Guardar</button>
+            ${winner ? `<span class="admin-result-badge has-result">${winner}</span>` : ''}
+          </div>
+        `;
+        container.appendChild(row);
+
+        row.querySelector('.btn-save-score').addEventListener('click', async () => {
+          const val = document.getElementById(`elim-${m.id}`).value.trim();
+          if (!val) { showToast('Escribe el ganador', 'err'); return; }
+          await saveResultElim(m.id, val);
+          currentResultsElim[key] = val;
+          showToast(`✅ Guardado: ${val}`);
+          renderElim();
+        });
+      });
+    });
+  }
+</script>
+</body>
+</html>

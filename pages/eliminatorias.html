@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Eliminatorias – Polla del Mundial 2026</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+<main class="page-content">
+  <div class="page-header">
+    <h2 class="page-title">🏅 Pronósticos – Fase Eliminatoria</h2>
+    <p class="page-sub">Escribe el nombre del equipo ganador de cada partido.</p>
+  </div>
+  <div id="elimContainer" class="groups-container"></div>
+</main>
+
+<script src="../app.js"></script>
+<script>
+  const user = buildNav('elim');
+  if (!user) throw new Error('no user');
+
+  const PHASE_ORDER = ['Ronda de 32', 'Ronda de 16', 'Cuartos de Final', 'Semifinal', 'Tercer Lugar', 'Final'];
+  const PHASE_EMOJI = { 'Ronda de 32':'🔵','Ronda de 16':'🟡','Cuartos de Final':'🟠','Semifinal':'🟣','Tercer Lugar':'⚫','Final':'🏆' };
+
+  let allPicksElim = {}, allResultsElim = {};
+
+  async function loadData() {
+    allPicksElim = await getAllPicksElim();
+    allResultsElim = await getAllResultsElim();
+    render();
+  }
+  loadData();
+
+  function render() {
+    const container = document.getElementById('elimContainer');
+    container.innerHTML = '';
+
+    const phases = {};
+    KNOCKOUT_MATCHES.forEach(m => { (phases[m.fase] = phases[m.fase] || []).push(m); });
+
+    PHASE_ORDER.forEach(fase => {
+      if (!phases[fase]) return;
+      const section = document.createElement('div');
+      section.className = 'match-group';
+      section.innerHTML = `<h3 class="group-label">${PHASE_EMOJI[fase]} ${fase} <span class="pts-badge">${POINTS[fase]} pts c/u</span></h3>`;
+
+      phases[fase].forEach(m => {
+        const key = 'p' + m.id;
+        const now = new Date();
+        const matchDate = new Date(m.fecha + 'T12:00:00');
+        const locked = now >= matchDate;
+        const userPick = (allPicksElim[user] && allPicksElim[user][key]) || '';
+        const real = allResultsElim[key] || null;
+        const isCorrect = real && userPick && userPick.toLowerCase().trim() === real.toLowerCase().trim();
+        const isWrong = real && userPick && !isCorrect;
+
+        const card = document.createElement('div');
+        card.className = `match-card ${locked ? 'locked' : ''}`;
+        card.innerHTML = `
+          <div class="match-meta">
+            <span class="match-date">${formatDate(m.fecha)}</span>
+            ${locked ? '<span class="badge-locked">🔒 Bloqueado</span>' : ''}
+            ${real ? `<span class="badge-score">✅ ${real}</span>` : ''}
+          </div>
+          <div class="match-teams elim-label">${m.label}</div>
+          <div class="elim-input-row">
+            <input type="text" class="elim-input ${isCorrect?'correct':''} ${isWrong?'wrong':''}"
+              placeholder="Nombre del equipo ganador" value="${userPick}" ${locked?'disabled':''} />
+            ${!locked ? '<button class="btn-save-elim">Guardar</button>' : ''}
+          </div>
+        `;
+        section.appendChild(card);
+
+        if (!locked) {
+          card.querySelector('.btn-save-elim').addEventListener('click', async () => {
+            const val = card.querySelector('.elim-input').value.trim();
+            if (!val) { showToast('Escribe un equipo', 'err'); return; }
+            await savePickElim(user, m.id, val);
+            if (!allPicksElim[user]) allPicksElim[user] = {};
+            allPicksElim[user][key] = val;
+            showToast('✅ Guardado');
+          });
+        }
+      });
+      container.appendChild(section);
+    });
+  }
+</script>
+</body>
+</html>

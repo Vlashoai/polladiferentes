@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pronósticos Grupos – Polla del Mundial 2026</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+<main class="page-content">
+  <div class="page-header">
+    <h2 class="page-title">⚽ Pronósticos – Fase de Grupos</h2>
+    <p class="page-sub">Selecciona G1, E o G2. Se bloquean al iniciar cada partido.</p>
+  </div>
+
+  <div class="filter-bar">
+    <label class="field-label">Ver partidos de:</label>
+    <div class="date-quick-filters" id="dateQuickFilters"></div>
+    <select id="dateFilter" class="filter-select">
+      <option value="">Todas las fechas</option>
+    </select>
+  </div>
+
+  <div id="groupsContainer" class="groups-container">
+    <div class="loading-state">Cargando partidos...</div>
+  </div>
+</main>
+
+<script src="../app.js"></script>
+<script>
+  const user = buildNav('grupos');
+  if (!user) throw new Error('no user');
+
+  let allPicks = {}, allResults = {};
+  let dateFilter = '';
+
+  async function loadData() {
+    allPicks = await getAllPicks();
+    allResults = await getAllResults();
+    setupDateFilters();
+    applyDefaultFilter();
+    render();
+  }
+  loadData();
+
+  function getTodayStr() {
+    // "Hoy" en hora de México (UTC-6), para que coincida con las fechas del calendario
+    const now = new Date();
+    const utcNow = new Date(now.getTime() + now.getTimezoneOffset() * 60000);
+    const mxTime = new Date(utcNow.getTime() - 6 * 60 * 60 * 1000);
+    return mxTime.toISOString().split('T')[0];
+  }
+
+  function addDaysStr(dateStr, days) {
+    const d = new Date(dateStr + 'T12:00:00Z');
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().split('T')[0];
+  }
+
+  function setupDateFilters() {
+    const dates = [...new Set(GROUP_MATCHES.map(m => m.fecha))].sort();
+    const select = document.getElementById('dateFilter');
+    dates.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.textContent = formatDate(d);
+      select.appendChild(opt);
+    });
+    select.addEventListener('change', e => {
+      dateFilter = e.target.value;
+      updateQuickFilterActive();
+      render();
+    });
+
+    const today = getTodayStr();
+    const tomorrow = addDaysStr(today, 1);
+    const quickFilters = [
+      { label: '📅 Hoy', value: today },
+      { label: '➡️ Mañana', value: tomorrow },
+      { label: '📋 Todos', value: '' }
+    ];
+    const qfContainer = document.getElementById('dateQuickFilters');
+    quickFilters.forEach(qf => {
+      const btn = document.createElement('button');
+      btn.className = 'quick-filter-btn';
+      btn.dataset.value = qf.value;
+      btn.textContent = qf.label;
+      btn.addEventListener('click', () => {
+        dateFilter = qf.value;
+        select.value = qf.value;
+        updateQuickFilterActive();
+        render();
+      });
+      qfContainer.appendChild(btn);
+    });
+  }
+
+  function updateQuickFilterActive() {
+    document.querySelectorAll('.quick-filter-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.value === dateFilter);
+    });
+  }
+
+  function applyDefaultFilter() {
+    // Por defecto mostrar los partidos de HOY si existen, si no, mostrar todos
+    const today = getTodayStr();
+    const hasToday = GROUP_MATCHES.some(m => m.fecha === today);
+    dateFilter = hasToday ? today : '';
+    document.getElementById('dateFilter').value = dateFilter;
+    updateQuickFilterActive();
+  }
+
+  function render() {
+    const container = document.getElementById('groupsContainer');
+    container.innerHTML = '';
+
+    const filteredMatches = dateFilter
+      ? GROUP_MATCHES.filter(m => m.fecha === dateFilter)
+      : GROUP_MATCHES;
+
+    if (!filteredMatches.length) {
+      container.innerHTML = '<div class="loading-state">No hay partidos en esta fecha.</div>';
+      return;
+    }
+
+    const groups = {};
+    filteredMatches.forEach(m => {
+      if (!groups[m.grupo]) groups[m.grupo] = [];
+      groups[m.grupo].push(m);
+    });
+
+    Object.entries(groups).forEach(([grupo, matches]) => {
+      const section = document.createElement('div');
+      section.className = 'match-group';
+      section.innerHTML = `<h3 class="group-label">${grupo}</h3>`;
+
+      matches.forEach(m => {
+        const key = 'p' + m.id;
+        const userPick = (allPicks[user] && allPicks[user][key]) || null;
+        const result = allResults[key];
+        const realResult = result ? resultFromGoals(result.g1, result.g2) : null;
+        const locked = matchStarted(m);
+        const hasScore = result && result.g1 !== undefined && result.g2 !== undefined;
+
+        const card = document.createElement('div');
+        card.className = `match-card ${locked ? 'locked' : ''}`;
+        card.innerHTML = `
+          <div class="match-meta">
+            <span class="match-date">${formatDate(m.fecha)} ${m.hora} (CDMX)${isDifferentTimezone() ? ` · ${formatLocalTime(m.fecha, m.hora)} (tu hora)` : ''}</span>
+            ${locked ? '<span class="badge-locked">🔒 Bloqueado</span>' : ''}
+            ${hasScore ? `<span class="badge-score">⚽ ${m.eq1} ${result.g1}–${result.g2} ${m.eq2}</span>` : ''}
+          </div>
+          <div class="match-teams">
+            <span class="team-name eq1">${m.eq1}</span>
+            <span class="vs-sep">vs</span>
+            <span class="team-name eq2">${m.eq2}</span>
+          </div>
+          <div class="pick-buttons" id="btns-${m.id}"></div>
+        `;
+        section.appendChild(card);
+
+        const btnsDiv = card.querySelector(`#btns-${m.id}`);
+        [['G1', m.eq1], ['E', 'Empate'], ['G2', m.eq2]].forEach(([value, label]) => {
+          const btn = document.createElement('button');
+          btn.className = 'pick-btn';
+          btn.textContent = value === 'E' ? 'E' : (value === 'G1' ? '← ' + label : label + ' →');
+          if (userPick === value) {
+            btn.classList.add('selected');
+            if (realResult) btn.classList.add(value === realResult ? 'correct' : 'wrong');
+          }
+          if (locked) btn.disabled = true;
+          else {
+            btn.addEventListener('click', async () => {
+              await savePick(user, m.id, value);
+              if (!allPicks[user]) allPicks[user] = {};
+              allPicks[user][key] = value;
+              render();
+              showToast('✅ Guardado');
+            });
+          }
+          btnsDiv.appendChild(btn);
+        });
+      });
+      container.appendChild(section);
+    });
+  }
+</script>
+</body>
+</html>

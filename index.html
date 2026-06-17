@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Polla del Mundial 2026 – Los Diferentes</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="login-page">
+
+  <div class="login-hero">
+    <div class="trophy-bg">🏆</div>
+    <div class="login-card">
+      <div class="login-header">
+        <span class="login-eyebrow">Los Diferentes · FIFA 2026</span>
+        <h1 class="login-title">POLLA DEL<br/>MUNDIAL</h1>
+        <p class="login-sub">USA · CANADÁ · MÉXICO &nbsp;|&nbsp; 11 Jun – 19 Jul 2026</p>
+      </div>
+      <div class="login-form">
+        <label class="field-label">¿Quién eres?</label>
+        <div class="participant-grid" id="participantGrid"></div>
+        <button class="btn-primary" id="enterBtn" disabled>Entrar →</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    const grid = document.getElementById('participantGrid');
+    const enterBtn = document.getElementById('enterBtn');
+    let selected = null;
+
+    PARTICIPANTS.forEach(name => {
+      const btn = document.createElement('button');
+      btn.className = 'participant-chip';
+      btn.textContent = name;
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.participant-chip').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selected = name;
+        enterBtn.disabled = false;
+      });
+      grid.appendChild(btn);
+    });
+
+    enterBtn.addEventListener('click', () => {
+      if (!selected) return;
+      sessionStorage.setItem('pollaUser', selected);
+      window.location.href = 'pages/grupos.html';
+    });
+  </script>
+</body>
+</html>

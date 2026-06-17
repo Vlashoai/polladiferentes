@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ver Todos – Polla del Mundial 2026</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+<main class="page-content">
+  <div class="page-header">
+    <h2 class="page-title">👁 Pronósticos de Todos</h2>
+    <p class="page-sub">Vista comparativa en tiempo real. <span class="legend-correct">Verde</span> = correcto · <span class="legend-wrong">Rojo</span> = incorrecto.</p>
+  </div>
+
+  <div class="filter-bar">
+    <label class="field-label">Filtrar por grupo:</label>
+    <select id="grupoFilter" class="filter-select">
+      <option value="">Todos los grupos</option>
+      <option>Grupo A</option><option>Grupo B</option><option>Grupo C</option>
+      <option>Grupo D</option><option>Grupo E</option><option>Grupo F</option>
+      <option>Grupo G</option><option>Grupo H</option><option>Grupo I</option>
+      <option>Grupo J</option><option>Grupo K</option><option>Grupo L</option>
+    </select>
+  </div>
+
+  <div class="table-wrapper" id="tableWrapper">
+    <div class="loading-state">Cargando...</div>
+  </div>
+</main>
+
+<script src="../app.js"></script>
+<script>
+  const user = buildNav('todos');
+  if (!user) throw new Error('no user');
+
+  let allPicks = {}, allResults = {}, grupoFilter = '';
+
+  async function loadData() {
+    allPicks = await getAllPicks();
+    allResults = await getAllResults();
+    render();
+  }
+  loadData();
+
+  document.getElementById('grupoFilter').addEventListener('change', e => {
+    grupoFilter = e.target.value;
+    render();
+  });
+
+  function activeParticipants() {
+    return PARTICIPANTS.filter(p => allPicks[p] && Object.keys(allPicks[p]).length > 0);
+  }
+
+  function render() {
+    const wrapper = document.getElementById('tableWrapper');
+    const filtered = grupoFilter ? GROUP_MATCHES.filter(m => m.grupo === grupoFilter) : GROUP_MATCHES;
+    const active = activeParticipants();
+
+    if (!active.length) {
+      wrapper.innerHTML = '<div class="loading-state">Aún no hay pronósticos registrados.</div>';
+      return;
+    }
+
+    let html = `<table class="picks-table"><thead><tr>
+        <th class="col-match">Partido</th><th class="col-result">Resultado</th>
+        ${active.map(p => `<th class="col-p ${p===user?'col-you':''}">${p}</th>`).join('')}
+      </tr></thead><tbody>`;
+
+    let lastGroup = '';
+    filtered.forEach(m => {
+      if (m.grupo !== lastGroup) {
+        lastGroup = m.grupo;
+        html += `<tr class="group-divider"><td colspan="${2+active.length}">${m.grupo}</td></tr>`;
+      }
+      const key = 'p' + m.id;
+      const result = allResults[key];
+      const realResult = result ? resultFromGoals(result.g1, result.g2) : null;
+      const scoreStr = (result && result.g1 !== undefined && result.g2 !== undefined) ? `${result.g1}–${result.g2}` : '—';
+
+      html += `<tr>
+        <td class="col-match"><span class="match-short">${m.eq1} vs ${m.eq2}</span></td>
+        <td class="col-result ${realResult?'has-result':''}">${realResult ? `${realResult} (${scoreStr})` : scoreStr}</td>
+        ${active.map(p => {
+          const pick = (allPicks[p] && allPicks[p][key]) || '';
+          const cls = pickClass(pick, realResult);
+          return `<td class="pick-cell ${cls} ${p===user?'col-you':''}">${pick || '–'}</td>`;
+        }).join('')}
+      </tr>`;
+    });
+
+    html += '</tbody></table>';
+    wrapper.innerHTML = html;
+  }
+</script>
+</body>
+</html>
