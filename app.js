@@ -287,15 +287,23 @@ function calcPuntosElim(picksElim, resultsElim) {
   return pts;
 }
 
+// Minutos antes del inicio del partido en que se bloquea la votación
+const LOCK_MINUTES_BEFORE = 30;
+
+/** Devuelve el Date (en UTC) del inicio real del partido, dado fecha/hora en horario de México (UTC-6).
+ *  Si el partido no trae 'hora' (ej. eliminatorias sin horario fijo aún), se usa 12:00 por defecto. */
+function matchDateTimeUTC(match) {
+  const [year, month, day] = match.fecha.split('-').map(Number);
+  const hora = match.hora || '12:00';
+  const [h, min] = hora.split(':').map(Number);
+  // Fecha del partido en UTC, ajustada desde hora de México (UTC-6) a UTC
+  return new Date(Date.UTC(year, month - 1, day, h + 6, min, 0));
+}
+
 function matchStarted(match) {
   const now = new Date();
-  // Las horas del calendario están en horario de Ciudad de México (UTC-6)
-  // Construimos la fecha del partido especificando explícitamente ese offset
-  const [year, month, day] = match.fecha.split('-').map(Number);
-  const [h, min] = match.hora.split(':').map(Number);
-  // Fecha del partido en UTC, ajustada desde hora de México (UTC-6) a UTC
-  const matchDateUTC = new Date(Date.UTC(year, month - 1, day, h + 6, min, 0));
-  return now >= matchDateUTC;
+  const lockTime = new Date(matchDateTimeUTC(match).getTime() - LOCK_MINUTES_BEFORE * 60000);
+  return now >= lockTime;
 }
 
 function formatDate(dateStr) {
@@ -305,9 +313,7 @@ function formatDate(dateStr) {
 
 /** Convierte fecha+hora de México (UTC-6) a la hora local del navegador del usuario */
 function formatLocalTime(fecha, hora) {
-  const [year, month, day] = fecha.split('-').map(Number);
-  const [h, min] = hora.split(':').map(Number);
-  const matchDateUTC = new Date(Date.UTC(year, month - 1, day, h + 6, min, 0));
+  const matchDateUTC = matchDateTimeUTC({ fecha, hora });
   return matchDateUTC.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
