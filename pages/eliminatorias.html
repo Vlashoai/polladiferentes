@@ -49,9 +49,7 @@
 
       phases[fase].forEach(m => {
         const key = 'p' + m.id;
-        const now = new Date();
-        const matchDate = new Date(m.fecha + 'T12:00:00');
-        const locked = now >= matchDate;
+        const locked = matchStarted(m);
         const userPick = (allPicksElim[user] && allPicksElim[user][key]) || '';
         const real = allResultsElim[key] || null;
         const isCorrect = real && userPick && userPick.toLowerCase().trim() === real.toLowerCase().trim();
@@ -61,7 +59,7 @@
         card.className = `match-card ${locked ? 'locked' : ''}`;
         card.innerHTML = `
           <div class="match-meta">
-            <span class="match-date">${formatDate(m.fecha)}</span>
+            <span class="match-date">${formatDate(m.fecha)}${m.hora ? ` ${m.hora} (CDMX)${isDifferentTimezone() ? ` · ${formatLocalTime(m.fecha, m.hora)} (tu hora)` : ''}` : ''}</span>
             ${locked ? '<span class="badge-locked">🔒 Bloqueado</span>' : ''}
             ${real ? `<span class="badge-score">✅ ${real}</span>` : ''}
           </div>
