@@ -5,6 +5,76 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ver Todos – Polla del Mundial 2026</title>
   <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    /* ── Botón de desglose ── */
+    .btn-votos {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 4px;
+      color: #aaa;
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      padding: 2px 6px;
+      margin-left: 6px;
+      transition: border-color .15s, color .15s;
+      vertical-align: middle;
+    }
+    .btn-votos:hover { border-color: #f5a623; color: #f5a623; }
+
+    /* ── Modal overlay ── */
+    .votos-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.70);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9999;
+      padding: 16px;
+    }
+    .votos-modal {
+      background: #1a1a2e;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 12px;
+      max-width: 480px; width: 100%;
+      padding: 24px;
+      position: relative;
+    }
+    .votos-modal h3 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.3rem;
+      letter-spacing: .05em;
+      color: #f5a623;
+      margin-bottom: 18px;
+    }
+    .votos-close {
+      position: absolute; top: 12px; right: 14px;
+      background: none; border: none;
+      color: #888; font-size: 22px; cursor: pointer; line-height: 1;
+    }
+    .votos-close:hover { color: #fff; }
+    .votos-group { margin-bottom: 14px; }
+    .votos-group-label {
+      font-size: 11px; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: #888;
+      margin-bottom: 6px;
+    }
+    .votos-group-label.g1  { color: #4caf7d; }
+    .votos-group-label.g2  { color: #e05e5e; }
+    .votos-group-label.emp { color: #9b9bff; }
+    .votos-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .votos-chip {
+      background: rgba(255,255,255,.07);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 13px;
+      color: #e0e0e0;
+    }
+    .votos-empty { color: #555; font-size: 13px; font-style: italic; }
+    .votos-total {
+      margin-top: 14px; padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,.08);
+      font-size: 12px; color: #666; text-align: right;
+    }
+  </style>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
 <body>
@@ -81,7 +151,10 @@
       const scoreStr = (result && result.g1 !== undefined && result.g2 !== undefined) ? `${result.g1}–${result.g2}` : '—';
 
       html += `<tr>
-        <td class="col-match"><span class="match-short">${m.eq1} vs ${m.eq2}</span></td>
+        <td class="col-match">
+          <span class="match-short">${m.eq1} vs ${m.eq2}</span>
+          <button class="btn-votos" onclick="showVotos(${m.id},'${m.eq1}','${m.eq2}')">👥</button>
+        </td>
         <td class="col-result ${realResult?'has-result':''}">${realResult ? `${realResult} (${scoreStr})` : scoreStr}</td>
         ${active.map(p => {
           const pick = (allPicks[p] && allPicks[p][key]) || '';
@@ -93,6 +166,63 @@
 
     html += '</tbody></table>';
     wrapper.innerHTML = html;
+  }
+
+  // ── Desglose de votos por partido ──────────────────────────
+  function showVotos(matchId, eq1, eq2) {
+    const key = 'p' + matchId;
+    const active = activeParticipants();
+
+    const grupos = { G1: [], G2: [], E: [] };
+    active.forEach(p => {
+      const pick = (allPicks[p] && allPicks[p][key]) || '';
+      if (pick === 'G1') grupos.G1.push(p);
+      else if (pick === 'G2') grupos.G2.push(p);
+      else if (pick === 'E')  grupos.E.push(p);
+    });
+
+    const total = grupos.G1.length + grupos.G2.length + grupos.E.length;
+
+    function chips(arr) {
+      if (!arr.length) return '<span class="votos-empty">Nadie</span>';
+      return arr.map(n => `<span class="votos-chip">${n}</span>`).join('');
+    }
+
+    const html = `
+      <div class="votos-overlay" id="votosOverlay">
+        <div class="votos-modal">
+          <button class="votos-close" id="votosClose">✕</button>
+          <h3>⚽ ${eq1} vs ${eq2}</h3>
+
+          <div class="votos-group">
+            <div class="votos-group-label g1">🟢 Gana ${eq1} (G1) — ${grupos.G1.length}</div>
+            <div class="votos-chips">${chips(grupos.G1)}</div>
+          </div>
+
+          <div class="votos-group">
+            <div class="votos-group-label g2">🔴 Gana ${eq2} (G2) — ${grupos.G2.length}</div>
+            <div class="votos-chips">${chips(grupos.G2)}</div>
+          </div>
+
+          <div class="votos-group">
+            <div class="votos-group-label emp">🟣 Empate (E) — ${grupos.E.length}</div>
+            <div class="votos-chips">${chips(grupos.E)}</div>
+          </div>
+
+          <div class="votos-total">${total} voto${total !== 1 ? 's' : ''} registrado${total !== 1 ? 's' : ''}</div>
+        </div>
+      </div>`;
+
+    document.body.insertAdjacentHTML('beforeend', html);
+
+    function close() { document.getElementById('votosOverlay').remove(); }
+    document.getElementById('votosClose').addEventListener('click', close);
+    document.getElementById('votosOverlay').addEventListener('click', e => {
+      if (e.target.id === 'votosOverlay') close();
+    });
+    document.addEventListener('keydown', function onEsc(e) {
+      if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onEsc); }
+    });
   }
 </script>
 </body>
