@@ -6,13 +6,61 @@
   <title>Eliminatorias – Polla del Mundial 2026</title>
   <link rel="stylesheet" href="../css/style.css" />
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    .elim-vs-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    .elim-team-btn {
+      flex: 1;
+      padding: 14px 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 10px;
+      border: 2px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.04);
+      color: inherit;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+    .elim-team-btn:hover:not(:disabled) {
+      border-color: rgba(255,255,255,0.35);
+      background: rgba(255,255,255,0.08);
+    }
+    .elim-team-btn.selected {
+      border-color: #ffb703;
+      background: rgba(255,183,3,0.18);
+      box-shadow: 0 0 0 1px #ffb703 inset;
+    }
+    .elim-team-btn.selected.correct {
+      border-color: #2ecc71;
+      background: rgba(46,204,113,0.2);
+    }
+    .elim-team-btn.selected.wrong {
+      border-color: #e74c3c;
+      background: rgba(231,76,60,0.18);
+    }
+    .elim-team-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+    .elim-vs-sep {
+      font-weight: 700;
+      opacity: 0.5;
+      font-size: 0.85rem;
+      padding: 0 2px;
+    }
+  </style>
 </head>
 <body>
 
 <main class="page-content">
   <div class="page-header">
     <h2 class="page-title">🏅 Pronósticos – Fase Eliminatoria</h2>
-    <p class="page-sub">Escribe el nombre del equipo ganador de cada partido.</p>
+    <p class="page-sub">Selecciona el equipo que crees que gana cada cruce.</p>
   </div>
   <div id="elimContainer" class="groups-container"></div>
 </main>
@@ -34,6 +82,17 @@
   }
   loadData();
 
+  // Extrae los dos nombres de equipo del label "Equipo A vs Equipo B".
+  // Si el cruce todavía no está definido (ej. "Gan. RD32-1 vs Gan. RD32-2"),
+  // devuelve null y se muestra el input de texto libre como respaldo.
+  function parseTeams(label) {
+    const parts = label.split(' vs ');
+    if (parts.length !== 2) return null;
+    const [a, b] = parts.map(s => s.trim());
+    if (/^(Gan\.|Perd\.|Clasif\.)/i.test(a) || /^(Gan\.|Perd\.|Clasif\.)/i.test(b)) return null;
+    return [a, b];
+  }
+
   function render() {
     const container = document.getElementById('elimContainer');
     container.innerHTML = '';
@@ -49,39 +108,84 @@
 
       phases[fase].forEach(m => {
         const key = 'p' + m.id;
-        const locked = matchStarted(m);
+        const now = new Date();
+        const matchDate = new Date(m.fecha + 'T12:00:00');
+        const locked = now >= matchDate;
         const userPick = (allPicksElim[user] && allPicksElim[user][key]) || '';
         const real = allResultsElim[key] || null;
-        const isCorrect = real && userPick && userPick.toLowerCase().trim() === real.toLowerCase().trim();
-        const isWrong = real && userPick && !isCorrect;
 
         const card = document.createElement('div');
         card.className = `match-card ${locked ? 'locked' : ''}`;
-        card.innerHTML = `
+
+        const teams = parseTeams(m.label);
+
+        const metaHtml = `
           <div class="match-meta">
-            <span class="match-date">${formatDate(m.fecha)}${m.hora ? ` ${m.hora} (CDMX)${isDifferentTimezone() ? ` · ${formatLocalTime(m.fecha, m.hora)} (tu hora)` : ''}` : ''}</span>
+            <span class="match-date">${formatDate(m.fecha)}</span>
             ${locked ? '<span class="badge-locked">🔒 Bloqueado</span>' : ''}
             ${real ? `<span class="badge-score">✅ ${real}</span>` : ''}
           </div>
-          <div class="match-teams elim-label">${m.label}</div>
-          <div class="elim-input-row">
-            <input type="text" class="elim-input ${isCorrect?'correct':''} ${isWrong?'wrong':''}"
-              placeholder="Nombre del equipo ganador" value="${userPick}" ${locked?'disabled':''} />
-            ${!locked ? '<button class="btn-save-elim">Guardar</button>' : ''}
-          </div>
         `;
-        section.appendChild(card);
 
-        if (!locked) {
-          card.querySelector('.btn-save-elim').addEventListener('click', async () => {
-            const val = card.querySelector('.elim-input').value.trim();
-            if (!val) { showToast('Escribe un equipo', 'err'); return; }
-            await savePickElim(user, m.id, val);
-            if (!allPicksElim[user]) allPicksElim[user] = {};
-            allPicksElim[user][key] = val;
-            showToast('✅ Guardado');
+        if (teams) {
+          const [teamA, teamB] = teams;
+          card.innerHTML = `
+            ${metaHtml}
+            <div class="elim-vs-row">
+              <button type="button" class="elim-team-btn" data-team="${teamA}">${teamA}</button>
+              <span class="elim-vs-sep">VS</span>
+              <button type="button" class="elim-team-btn" data-team="${teamB}">${teamB}</button>
+            </div>
+          `;
+
+          const btns = card.querySelectorAll('.elim-team-btn');
+          btns.forEach(btn => {
+            const teamName = btn.dataset.team;
+            const isSelected = userPick && userPick.toLowerCase().trim() === teamName.toLowerCase().trim();
+            const isCorrect = real && isSelected && teamName.toLowerCase().trim() === real.toLowerCase().trim();
+            const isWrong = real && isSelected && !isCorrect;
+            if (isSelected) btn.classList.add('selected');
+            if (isCorrect) btn.classList.add('correct');
+            if (isWrong) btn.classList.add('wrong');
+            if (locked) btn.disabled = true;
+
+            if (!locked) {
+              btn.addEventListener('click', async () => {
+                btns.forEach(b => b.classList.remove('selected'));
+                btn.classList.add('selected');
+                await savePickElim(user, m.id, teamName);
+                if (!allPicksElim[user]) allPicksElim[user] = {};
+                allPicksElim[user][key] = teamName;
+                showToast('✅ Guardado');
+              });
+            }
           });
+        } else {
+          // Respaldo: cruce aún sin equipos definidos (depende de rondas anteriores)
+          const isCorrect = real && userPick && userPick.toLowerCase().trim() === real.toLowerCase().trim();
+          const isWrong = real && userPick && !isCorrect;
+          card.innerHTML = `
+            ${metaHtml}
+            <div class="match-teams elim-label">${m.label}</div>
+            <div class="elim-input-row">
+              <input type="text" class="elim-input ${isCorrect?'correct':''} ${isWrong?'wrong':''}"
+                placeholder="Nombre del equipo ganador" value="${userPick}" ${locked?'disabled':''} />
+              ${!locked ? '<button class="btn-save-elim">Guardar</button>' : ''}
+            </div>
+          `;
+          if (!locked) {
+            card.querySelector('.btn-save-elim').addEventListener('click', async () => {
+              const val = card.querySelector('.elim-input').value.trim();
+              if (!val) { showToast('Escribe un equipo', 'err'); return; }
+              await savePickElim(user, m.id, val);
+              if (!allPicksElim[user]) allPicksElim[user] = {};
+              allPicksElim[user][key] = val;
+              showToast('✅ Guardado');
+            });
+          }
         }
+
+        section.appendChild(card);
       });
       container.appendChild(section);
     });
