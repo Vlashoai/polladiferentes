@@ -117,7 +117,7 @@ const GROUP_MATCHES = [
 ];
 
 const KNOCKOUT_MATCHES = [
-  {id:73,fase:'Ronda de 32',label:'Sudáfrica vs Canadá',fecha:'2026-06-29'},
+  {id:73,fase:'Ronda de 32',label:'Sudáfrica vs Canadá',fecha:'2026-06-30'},
   {id:74,fase:'Ronda de 32',label:'Brasil vs Japón',fecha:'2026-06-29'},
   {id:75,fase:'Ronda de 32',label:'Alemania vs Paraguay',fecha:'2026-06-29'},
   {id:76,fase:'Ronda de 32',label:'Países Bajos vs Marruecos',fecha:'2026-06-29'},
