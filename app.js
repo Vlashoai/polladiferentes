@@ -292,6 +292,12 @@ function matchStarted(match) {
   // Las horas del calendario están en horario de Ciudad de México (UTC-6)
   // Construimos la fecha del partido especificando explícitamente ese offset
   const [year, month, day] = match.fecha.split('-').map(Number);
+  if (!match.hora) {
+    // Partidos de eliminatorias (KNOCKOUT_MATCHES) solo tienen fecha, sin hora.
+    // Se bloquean al mediodía hora México de ese día.
+    const matchDateUTC = new Date(Date.UTC(year, month - 1, day, 18, 0, 0));
+    return now >= matchDateUTC;
+  }
   const [h, min] = match.hora.split(':').map(Number);
   // Fecha del partido en UTC, ajustada desde hora de México (UTC-6) a UTC
   const matchDateUTC = new Date(Date.UTC(year, month - 1, day, h + 6, min, 0));
